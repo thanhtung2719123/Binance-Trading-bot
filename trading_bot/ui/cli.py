@@ -7,6 +7,7 @@ from rich import print as rprint
 from typing import Optional, List
 import logging
 import pandas as pd
+from ..news.gemini_news_analysis import GeminiNewsAndAnalysisModule
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -20,6 +21,9 @@ class TradingBotCLI:
         self.binance = None
         self.technical_analysis = None
         self.gemini = None
+        from ..news.news_module import NewsModule
+        self.news_module = NewsModule()
+        self.gemini_news_module = GeminiNewsAndAnalysisModule()
 
     def display_welcome(self):
         """Display welcome message and menu."""
@@ -37,10 +41,11 @@ class TradingBotCLI:
         1. Manage Trading Strategies
         2. View Trade Suggestions
         3. Manage Monitored Pairs
-        4. Exit
+        4. View AI News Analysis & Signals
+        5. Exit
         """
         self.console.print(Panel(menu_text, title="Menu", border_style="green"))
-        return Prompt.ask("Select an option", choices=["1", "2", "3", "4"])
+        return Prompt.ask("Select an option", choices=["1", "2", "3", "4", "5"])
 
     def configure_api_keys(self):
         """Configure Binance and Gemini API keys."""
@@ -53,11 +58,15 @@ class TradingBotCLI:
         # Gemini API Key
         gemini_key = Prompt.ask("Enter your Gemini API Key")
         
+        # News API Key
+        news_key = Prompt.ask("Enter your The News API Key")
+        
         # Save to .env file
         with open(".env", "w") as f:
             f.write(f"BINANCE_API_KEY={binance_key}\n")
             f.write(f"BINANCE_API_SECRET={binance_secret}\n")
             f.write(f"GEMINI_API_KEY={gemini_key}\n")
+            f.write(f"THE_NEWS_API_TOKEN={news_key}\n")
         
         self.console.print("[green]API keys saved successfully![/green]")
 
@@ -209,9 +218,54 @@ class TradingBotCLI:
                 
                 if suggestion:
                     self.display_trade_suggestion(suggestion)
-                    
+
+                # Prompt user if they want to see AI news analysis for this pair
+                if Confirm.ask(f"View AI news analysis for {pair}?"):
+                    focus = pair
+                    target_asset = pair
+                    self.console.print("[yellow]Contacting Gemini for news discovery and analysis...[/yellow]")
+                    result = self.gemini_news_module.run_discovery_and_analysis(focus=focus, target_asset=target_asset)
+                    if "error" in result:
+                        self.console.print(f"[red]{result['error']}[/red]")
+                    else:
+                        news = result.get("news", [])
+                        if news:
+                            news_table = Table(title="Discovered News")
+                            news_table.add_column("Headline", style="cyan")
+                            for item in news:
+                                news_table.add_row(item.get("headline", ""))
+                            self.console.print(news_table)
+                        analysis = result.get("analysis", {})
+                        if analysis:
+                            analysis_table = Table(title="AI News Analysis & Signal")
+                            for k, v in analysis.items():
+                                analysis_table.add_row(k.capitalize(), str(v))
+                            self.console.print(analysis_table)
             except Exception as e:
                 self.console.print(f"[red]Error getting suggestions for {pair}: {str(e)}[/red]")
+
+    def display_gemini_news_analysis(self):
+        self.console.print("\n[bold]AI-Powered News Discovery & Analysis[/bold]")
+        focus = Prompt.ask("Enter news focus (e.g., 'crypto market', 'BTC/USD', 'Tesla')", default="crypto market")
+        target_asset = Prompt.ask("Enter target asset/market for analysis", default="BTC/USD")
+        self.console.print("[yellow]Contacting Gemini for news discovery and analysis...[/yellow]")
+        result = self.gemini_news_module.run_discovery_and_analysis(focus=focus, target_asset=target_asset)
+        if "error" in result:
+            self.console.print(f"[red]{result['error']}[/red]")
+            return
+        news = result.get("news", [])
+        if news:
+            news_table = Table(title="Discovered News")
+            news_table.add_column("Headline", style="cyan")
+            for item in news:
+                news_table.add_row(item.get("headline", ""))
+            self.console.print(news_table)
+        analysis = result.get("analysis", {})
+        if analysis:
+            analysis_table = Table(title="AI News Analysis & Signal")
+            for k, v in analysis.items():
+                analysis_table.add_row(k.capitalize(), str(v))
+            self.console.print(analysis_table)
 
     def run(self):
         """Run the CLI interface."""
@@ -227,11 +281,13 @@ class TradingBotCLI:
                     self.view_trade_suggestions()
                 elif choice == "3":
                     self.manage_pairs()
+                elif choice == "4":
+                    self.display_gemini_news_analysis()
                 else:
                     if Confirm.ask("Are you sure you want to exit?"):
                         break
             
-            self.console.print("[green]Thank you for using the Trading Bot![/green]")
+            self.console.print("[green]Thank you for using the VTT Trading Bot![/green]")
             
         except KeyboardInterrupt:
             self.console.print("\n[yellow]Trading bot stopped by user[/yellow]")

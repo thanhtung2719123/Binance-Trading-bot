@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     BINANCE_API_KEY: str = os.getenv("BINANCE_API_KEY", "")
     BINANCE_API_SECRET: str = os.getenv("BINANCE_API_SECRET", "")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    THE_NEWS_API_TOKEN: str = os.getenv("THE_NEWS_API_TOKEN", "")
 
     # Trading Parameters
     DEFAULT_TIMEFRAMES: List[str] = ["1m", "5m", "15m", "1h", "4h", "1d"]
